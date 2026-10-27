@@ -17,22 +17,30 @@ fi
 
 
 get_last_timestamp() {
-    local lastFile=$(cd "$EXPORT_DIR" && ls | sort | tail -n1)
+    local lastFile=$(cd "$EXPORT_DIR" && ls | grep '.json' | sort | tail -n 1)
     if [ -z "$lastFile" ]; then
         echo 0
         return
     fi
-    echo $(jq -r ".recenttracks.track[0].date.uts" "$EXPORT_DIR/$lastFile")
+    # Get the timestamp of the first non-null track in the last file
+    echo $(jq -r ".recenttracks.track[].date.uts" "$EXPORT_DIR/$lastFile" | grep -v null | head -n 1)
 }
 
 FROM_TS=$(($(get_last_timestamp)+1))
 echo "Resuming from timestamp: $FROM_TS"
+if [[ "$FROM_TS" -eq 1 ]]; then
+    echo "Starting from the beginning"
+    read -p "Continue? (y/n) " confirm
+    if [[ "$confirm" != "y" ]]; then
+        exit 0
+    fi
+fi
 
 START_PAGE=1
 while true; do
     URL="ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&api_key=$API_KEY&user=$USER_NAME&format=json&limit=1000&extended=1&page=$START_PAGE&from=$FROM_TS"
     echo "Fetching page $START_PAGE"
-    curl $URL | jq . > "$TMPFILE"
+    curl $URL --silent | jq . > "$TMPFILE"
     if [ $? -ne 0 ]; then
         echo "Failed to fetch page $START_PAGE"
         rm -f "$TMPFILE"
