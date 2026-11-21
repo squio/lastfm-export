@@ -17,7 +17,7 @@ fi
 
 
 get_last_timestamp() {
-    local lastFile=$(cd "$EXPORT_DIR" && ls | grep '.json' | sort | tail -n 1)
+    local lastFile=$(cd "$EXPORT_DIR" && ls | grep '^[0-9]*\.json$' | sort | tail -n 1)
     if [ -z "$lastFile" ]; then
         echo 0
         return
@@ -55,7 +55,7 @@ while true; do
         rm -f "$TMPFILE"
         exit 1
     fi
-    TIMESTAMP=$(jq -r ".recenttracks.track[-1].date.uts" "$TMPFILE")
+    TIMESTAMP=$(jq -r '.recenttracks.track | if type == "array" then .[-1].date.uts else .date.uts end' "$TMPFILE")
     FILENAME="$EXPORT_DIR/$TIMESTAMP.json"
     mv "$TMPFILE" "$FILENAME"
     # use jq to check if totalPages is equal or greater than START_PAGE
