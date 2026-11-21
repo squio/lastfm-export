@@ -29,9 +29,10 @@ get_last_timestamp() {
 FROM_TS=$(($(get_last_timestamp)+1))
 echo "Resuming from timestamp: $FROM_TS"
 if [[ "$FROM_TS" -eq 1 ]]; then
-    echo "Starting from the beginning"
-    read -p "Continue? (y/n) " confirm
+    echo "No previous data found"
+    read "?Start from the beginning? (y/n) " confirm
     if [[ "$confirm" != "y" ]]; then
+        echo "Exiting"
         exit 0
     fi
 fi
@@ -46,12 +47,20 @@ while true; do
         rm -f "$TMPFILE"
         break
     fi
+    # Check for Last.fm API errors
+    error=$(jq -r '.error // empty' "$TMPFILE")
+    if [ -n "$error" ]; then
+        message=$(jq -r '.message // "Unknown error"' "$TMPFILE")
+        echo "Last.fm API Error ($error): $message"
+        rm -f "$TMPFILE"
+        exit 1
+    fi
     TIMESTAMP=$(jq -r ".recenttracks.track[-1].date.uts" "$TMPFILE")
     FILENAME="$EXPORT_DIR/$TIMESTAMP.json"
     mv "$TMPFILE" "$FILENAME"
     # use jq to check if totalPages is equal or greater than START_PAGE
     totalPages=$(jq -r '.recenttracks["@attr"].totalPages' "$FILENAME")
-    if [ "$START_PAGE" -ge "$totalPages" ]; then
+    if [ -z "$totalPages" ] || [ "$totalPages" = "null" ] || [ "$START_PAGE" -ge "$totalPages" ]; then
         echo "All pages fetched."
         break
     fi
